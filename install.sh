@@ -2,30 +2,42 @@
 
 set -e
 
-APP=/opt/hax-bot-7.1
+APP=/opt/hax-bot-7.2
 
-echo "🚀 HAX BOT 7.1 终极交互稳定版"
+echo "🚀 HAX BOT 7.2 终极防错安装"
 
 # =========================
-# 1. 环境
+# 0. 修复 CRLF（你刚刚那个报错的根）
+# =========================
+echo "🧹 检测脚本格式..."
+sed -i 's/\r$//' "$0" || true
+
+# =========================
+# 1. 基础环境
 # =========================
 apt update -y
-apt install -y python3 python3-pip python3-venv git curl
+apt install -y python3 python3-pip python3-venv git curl dos2unix
 
 # =========================
-# 2. 清理旧版本
+# 2. 清理旧环境
 # =========================
 rm -rf $APP
 
 # =========================
-# 3. clone
+# 3. clone（强制稳定）
 # =========================
+echo "📦 拉取代码..."
 git clone https://github.com/mingyueqianli/hax-bot-6.6.git $APP
 
 cd $APP
 
 # =========================
-# 4. python环境
+# 4. 再次防CRLF
+# =========================
+dos2unix install.sh 2>/dev/null || true
+
+# =========================
+# 5. Python环境
 # =========================
 python3 -m venv venv
 source venv/bin/activate
@@ -35,50 +47,52 @@ pip install -r requirements.txt
 mkdir -p data logs
 
 # =========================
-# 🔥 关键修复（强制交互输入）
+# 6. 强制交互恢复（关键）
 # =========================
-
-# 防止 curl | bash 吞掉输入
 exec < /dev/tty
 
-echo "================================"
-echo "请选择安装模式"
-echo "1) 一键模式（默认）"
-echo "2) 交互模式（输入TOKEN）"
-echo "================================"
+echo "===================="
+echo "请选择模式:"
+echo "1) 一键模式"
+echo "2) 交互模式"
+echo "===================="
 
-read -p "请输入选项(1/2): " MODE
+read -p "输入: " MODE
 
 if [ "$MODE" = "2" ]; then
 
-    echo "===================="
-    read -p "🔑 请输入 TOKEN: " TOKEN
-
-    echo "===================="
-    read -p "⏱ 请输入采集时间(秒): " INTERVAL
+    read -p "🔑 TOKEN: " TOKEN
+    read -p "⏱ INTERVAL: " INTERVAL
 
 else
-    echo "使用默认配置"
     TOKEN="test_token"
     INTERVAL=30
 fi
 
 # =========================
-# 5. 写入配置
+# 7. 写入配置
 # =========================
 echo $TOKEN > token.txt
 echo $INTERVAL > interval.txt
 
 # =========================
-# 6. 启动系统
+# 8. 启动保护（防重复）
 # =========================
-echo "🚀 启动 BOT + COLLECTOR..."
+pkill -f app.bot.main || true
+pkill -f app.collector.runner || true
+
+echo "🚀 启动系统..."
 
 nohup python -m app.collector.runner > logs/collector.log 2>&1 &
 nohup python -m app.bot.main > logs/bot.log 2>&1 &
 
+# =========================
+# 9. 完成
+# =========================
 echo "================================"
-echo "✅ HAX BOT 7.1 安装完成"
+echo "✅ HAX BOT 7.2 安装完成"
+echo "📂 路径: $APP"
 echo "🔑 TOKEN: $TOKEN"
 echo "⏱ INTERVAL: $INTERVAL"
+echo "🚀 已稳定运行"
 echo "================================"
