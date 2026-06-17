@@ -2,25 +2,28 @@
 
 set -e
 
-APP=/opt/hax-bot-7.2
+APP=/opt/hax-bot-7.3
 
-echo "🚀 HAX BOT 7.2 ULTIMATE START"
+echo "🚀 HAX BOT 7.3 终极闭环安装"
 
 # =========================
-# 1. 环境准备
+# 1. 环境
 # =========================
 apt update -y
 apt install -y python3 python3-pip python3-venv git curl
 
 # =========================
-# 2. 清理旧版本
+# 2. 防重复运行（关键）
 # =========================
-rm -rf $APP
+pkill -f app.bot.main || true
+pkill -f app.collector.runner || true
 
 # =========================
-# 3. clone项目
+# 3. 如果不存在才clone（闭环核心）
 # =========================
-git clone https://github.com/mingyueqianli/hax-bot-7.2.git $APP
+if [ ! -d "$APP" ]; then
+    git clone https://github.com/mingyueqianli/hax-bot-7.2.git $APP
+fi
 
 cd $APP
 
@@ -35,60 +38,37 @@ pip install -r requirements.txt
 mkdir -p data logs
 
 # =========================
-# 🔥 核心修复：强制交互（重点）
+# 5. 关键：强制交互（修复curl问题）
 # =========================
+exec < /dev/tty
 
-# 防止 curl | bash 吞输入
-if [ -t 0 ]; then
-    echo "✔ 交互模式正常"
-else
-    echo "⚠️ 修复 stdin（curl | bash环境）"
-    exec < /dev/tty
-fi
+echo "===================="
+read -p "🔑 TOKEN: " TOKEN
 
-echo "========================"
-echo "请选择模式:"
-echo "1) 一键模式（默认）"
-echo "2) 手动输入TOKEN模式"
-echo "========================"
-
-read -p "输入选择: " MODE
-
-if [ "$MODE" = "2" ]; then
-
-    echo "========================"
-    read -p "🔑 请输入 TOKEN: " TOKEN
-
-    echo "========================"
-    read -p "⏱ 请输入采集时间(秒): " INTERVAL
-
-else
-    TOKEN="test_token"
-    INTERVAL=30
-fi
-
-# 默认保护
+echo "===================="
+read -p "⏱ INTERVAL(默认30): " INTERVAL
 INTERVAL=${INTERVAL:-30}
 
 # =========================
-# 写入配置
+# 6. 写入配置
 # =========================
 echo $TOKEN > token.txt
 echo $INTERVAL > interval.txt
 
 # =========================
-# 启动系统
+# 7. 启动（闭环关键）
 # =========================
-echo "🚀 启动 BOT + COLLECTOR..."
-
-pkill -f app.bot.main || true
-pkill -f app.collector.runner || true
+echo "🚀 启动系统..."
 
 nohup python -m app.collector.runner > logs/collector.log 2>&1 &
 nohup python -m app.bot.main > logs/bot.log 2>&1 &
 
-echo "========================"
-echo "✅ HAX BOT 7.2 完成"
-echo "🔑 TOKEN: $TOKEN"
+# =========================
+# 8. 输出状态
+# =========================
+echo "================================"
+echo "✅ HAX BOT 7.3 安装完成（闭环版）"
+echo "🔑 TOKEN: 已设置"
 echo "⏱ INTERVAL: $INTERVAL"
-echo "========================"
+echo "📦 路径: $APP"
+echo "================================"
