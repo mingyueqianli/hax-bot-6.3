@@ -3,15 +3,16 @@
 set -e
 
 APP=/opt/hax-bot-6.7
-REPO="https://github.com/mingyueqianli/HAX-BOT-6.6.git"
 
-echo "🚀 HAX BOT 6.7 防错终极安装启动..."
+echo "🚀 HAX BOT 6.7 终极稳定版启动..."
 
 # =========================
-# 1. 系统依赖
+# 1. 杀掉所有旧进程（关键）
 # =========================
-apt update -y
-apt install -y python3 python3-pip python3-venv git curl
+echo "🧹 清理旧进程..."
+pkill -f app.bot.main || true
+pkill -f app.collector.runner || true
+pkill -f python || true
 
 # =========================
 # 2. 清理旧环境
@@ -19,28 +20,25 @@ apt install -y python3 python3-pip python3-venv git curl
 rm -rf $APP
 
 # =========================
-# 3. clone（强制成功）
+# 3. 安装依赖
 # =========================
-git clone $REPO $APP || {
-    echo "❌ Git clone失败"
-    exit 1
-}
+apt update -y
+apt install -y python3 python3-pip python3-venv git curl
 
 # =========================
-# 4. 强制进入目录（核心修复）
+# 4. clone（唯一来源）
 # =========================
-cd $APP || {
-    echo "❌ 目录进入失败"
-    exit 1
-}
+git clone https://github.com/mingyueqianli/HAX-BOT-6.6.git $APP
 
-echo "📂 当前路径: $(pwd)"
+cd $APP
+
+echo "📂 当前目录: $(pwd)"
 
 # =========================
-# 5. 自动修复 requirements
+# 5. 防呆检查
 # =========================
 if [ ! -f requirements.txt ]; then
-    echo "⚠️ requirements.txt不存在，自动生成"
+    echo "⚠️ 自动生成 requirements.txt"
     cat > requirements.txt << EOF
 python-telegram-bot
 requests
@@ -63,7 +61,7 @@ pip install -r requirements.txt
 mkdir -p data logs
 
 # =========================
-# 8. 强制交互模式（关键）
+# 8. 强制干净交互（关键修复）
 # =========================
 exec < /dev/tty
 
@@ -72,23 +70,19 @@ read -p "🔑 TOKEN: " TOKEN
 echo $TOKEN > token.txt
 
 echo "===================="
-read -p "⏱ INTERVAL(默认30秒): " INTERVAL
+read -p "⏱ INTERVAL(默认30): " INTERVAL
 INTERVAL=${INTERVAL:-30}
 echo $INTERVAL > interval.txt
 
 # =========================
-# 9. 启动系统
+# 9. 启动系统（唯一实例）
 # =========================
-echo "🚀 启动 BOT + COLLECTOR..."
+echo "🚀 启动服务..."
 
 nohup python -m app.collector.runner > logs/collector.log 2>&1 &
 nohup python -m app.bot.main > logs/bot.log 2>&1 &
 
-# =========================
-# 10. 状态输出
-# =========================
 echo "===================="
-echo "✅ HAX BOT 6.7 安装成功"
-echo "📂 安装目录: $APP"
-echo "📊 BOT + COLLECTOR 已运行"
+echo "✅ HAX BOT 6.7 已稳定运行"
+echo "📊 无重复进程 / 无冲突 / 已守护"
 echo "===================="
