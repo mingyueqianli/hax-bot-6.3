@@ -9,12 +9,9 @@ def get_interval():
 
 def run():
     while True:
-        try:
-            data = fetch()
-            with open("data/test.txt","w",encoding="utf-8") as f:
-                f.writelines(data)
-        except Exception as e:
-            print("collector error:", e)
+        data = fetch()
+        with open("data/test.txt","w",encoding="utf-8") as f:
+            f.writelines(data)
         time.sleep(get_interval())
 
 if __name__ == "__main__":

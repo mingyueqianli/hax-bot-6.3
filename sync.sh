@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "6.4 update"
+git commit -m "6.6 update"
 git push

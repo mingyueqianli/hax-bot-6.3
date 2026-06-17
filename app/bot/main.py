@@ -13,32 +13,17 @@ COMMAND_MAP = {
     "9": "cancel"
 }
 
-WELCOME = """HAX BOT 6.4 企业版
+WELCOME = """HAX BOT 6.6 FULL VERSION
 
-机器管理:
-/new
-/info
-/rename
-/delmachine
-
-监控:
-/monitor
-/alert
-
-系统:
-/status
-/stats
-/version
-/help
-
-控制:
-/setinterval
+/start  启动
+/info   列表
+/new    添加
+/monitor监控
+/setinterval 设置采集时间
+/stats  数据
 """
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(WELCOME)
-
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME)
 
 async def router(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,16 +39,15 @@ async def setinterval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         with open("interval.txt","w") as f:
             f.write(str(sec))
-        await update.message.reply_text(f"interval set: {sec}s")
+        await update.message.reply_text(f"OK {sec}s")
     except:
-        await update.message.reply_text("usage: /setinterval 30")
+        await update.message.reply_text("usage /setinterval 30")
 
 def main():
     token = open("token.txt").read().strip()
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("setinterval", setinterval))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router))
 
