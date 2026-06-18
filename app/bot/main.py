@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+import os
 import re
+import shutil
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timedelta
@@ -173,7 +176,7 @@ def format_snapshot(snapshot: dict[str, Any]) -> str:
 
 def get_help_text() -> str:
     return (
-        "欢迎使用 HAX BOT 7.8\n\n"
+        "欢迎使用 HAX BOT 7.9\n\n"
         "常用命令：\n"
         "/new - 添加机器续期提醒\n"
         "/info - 查看机器列表和剩余时间\n"
@@ -181,6 +184,7 @@ def get_help_text() -> str:
         "/delmachine - 删除机器，支持 1,3 或 1-3\n"
         "/monitor - 开启/关闭 HAX 数据中心变化提醒\n"
         "/status - 查看当前采集到的数据中心状态\n"
+        "/interval - 查看或修改采集间隔，例如 /interval 60\n"
         "/cancel - 取消当前操作"
     )
 
@@ -195,12 +199,117 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.effective_message.reply_text(get_help_text())
 
 
+
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     snapshot = load_snapshot()
     if not snapshot:
         await update.effective_message.reply_text("暂时没有采集数据，请稍后查看 collector 日志。")
         return
     await update.effective_message.reply_text(format_snapshot(snapshot))
+
+
+def build_interval_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("30秒", callback_data="interval_set_30"),
+                InlineKeyboardButton("60秒", callback_data="interval_set_60"),
+                InlineKeyboardButton("120秒", callback_data="interval_set_120"),
+            ],
+            [
+                InlineKeyboardButton("300秒", callback_data="interval_set_300"),
+                InlineKeyboardButton("600秒", callback_data="interval_set_600"),
+            ],
+            [InlineKeyboardButton("🔄 刷新当前间隔", callback_data="interval_refresh")],
+        ]
+    )
+
+
+def format_interval_help() -> str:
+    interval = config.get_interval_seconds()
+    return (
+        f"⏱ 当前采集间隔：{interval} 秒\n\n"
+        "修改方式：\n"
+        "1. 直接发送：/interval 60\n"
+        "2. 或点击下面常用间隔按钮\n\n"
+        f"允许范围：{config.MIN_INTERVAL_SECONDS} - {config.MAX_INTERVAL_SECONDS} 秒。"
+    )
+
+
+def restart_collector_service() -> str:
+    service_name = os.getenv("HAX_COLLECTOR_SERVICE", "hax-bot-collector.service")
+    if os.getenv("HAX_SKIP_SYSTEMCTL", "").strip() == "1":
+        return "已写入配置；当前设置为跳过 systemctl，采集器下次读取配置时生效。"
+    if not shutil.which("systemctl"):
+        return "已写入配置；当前环境没有 systemctl，采集器下次读取配置时生效。"
+    try:
+        subprocess.run(
+            ["systemctl", "restart", service_name],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return f"已重启 {service_name}，新间隔立即生效。"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("重启采集服务失败：%s", exc)
+        return "配置已写入，但自动重启采集服务失败；可手动执行 systemctl restart hax-bot-collector。"
+
+
+def reschedule_datacenter_job(context: ContextTypes.DEFAULT_TYPE, interval: int) -> None:
+    if not context.job_queue:
+        return
+    for job in context.job_queue.get_jobs_by_name("datacenter_watch"):
+        job.schedule_removal()
+    context.job_queue.run_repeating(
+        check_datacenters_job,
+        interval=max(config.MIN_INTERVAL_SECONDS, interval),
+        first=5,
+        name="datacenter_watch",
+    )
+
+
+async def apply_interval(update: Update, context: ContextTypes.DEFAULT_TYPE, value: int, *, edit_message: bool = False) -> None:
+    interval = config.write_interval_seconds(value)
+    reschedule_datacenter_job(context, interval)
+    restart_msg = restart_collector_service()
+    text = f"✅ 采集间隔已修改为：{interval} 秒\n{restart_msg}"
+    if edit_message and update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=build_interval_keyboard())
+    else:
+        await update.effective_message.reply_text(text, reply_markup=build_interval_keyboard())
+
+
+async def interval_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.args:
+        raw = context.args[0].strip()
+        if not raw.isdigit():
+            await update.effective_message.reply_text("格式错误。示例：/interval 60")
+            return
+        value = int(raw)
+        if value < config.MIN_INTERVAL_SECONDS or value > config.MAX_INTERVAL_SECONDS:
+            await update.effective_message.reply_text(
+                f"间隔范围必须是 {config.MIN_INTERVAL_SECONDS} - {config.MAX_INTERVAL_SECONDS} 秒。"
+            )
+            return
+        await apply_interval(update, context, value)
+        return
+
+    await update.effective_message.reply_text(format_interval_help(), reply_markup=build_interval_keyboard())
+
+
+async def interval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.data == "interval_refresh":
+        await query.edit_message_text(format_interval_help(), reply_markup=build_interval_keyboard())
+        return
+    try:
+        value = int(query.data.rsplit("_", 1)[1])
+    except Exception:
+        await query.edit_message_text("间隔参数无效，请使用 /interval 60 修改。")
+        return
+    await apply_interval(update, context, value, edit_message=True)
 
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -628,6 +737,8 @@ def build_application(token: str) -> Application:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("interval", interval_command))
+    application.add_handler(CommandHandler("setinterval", interval_command))
     application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("monitor", monitor_command))
     application.add_handler(conv_new)
@@ -636,10 +747,11 @@ def build_application(token: str) -> Application:
     application.add_handler(CallbackQueryHandler(renew_button_callback, pattern=r"^renew_"))
     application.add_handler(CallbackQueryHandler(toggle_dc_monitor_callback, pattern=r"^toggle_dc_monitor$"))
     application.add_handler(CallbackQueryHandler(manual_refresh_callback, pattern=r"^dc_manual_refresh$"))
+    application.add_handler(CallbackQueryHandler(interval_callback, pattern=r"^interval_"))
 
-    interval = max(20, config.get_interval_seconds())
+    interval = max(config.MIN_INTERVAL_SECONDS, config.get_interval_seconds())
     application.job_queue.run_repeating(check_expirations_job, interval=60, first=10)
-    application.job_queue.run_repeating(check_datacenters_job, interval=interval, first=15)
+    application.job_queue.run_repeating(check_datacenters_job, interval=interval, first=15, name="datacenter_watch")
     return application
 
 

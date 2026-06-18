@@ -1,5 +1,5 @@
 [Unit]
-Description=HAX BOT 7.8 Collector Service
+Description=HAX BOT 7.9 Collector Service
 After=network.target network-online.target
 Wants=network-online.target
 

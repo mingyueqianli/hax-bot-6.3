@@ -1,14 +1,22 @@
-# HAX BOT 7.8
+# HAX BOT 7.9
 
 HAX Telegram Bot 一键安装版。支持 Ubuntu / Debian VPS，适配 AMD64 / ARM64。安装后使用 systemd 守护两个进程：
 
 - `hax-bot.service`：Telegram 机器人、机器续期提醒、数据中心变化通知。
 - `hax-bot-collector.service`：定时采集 HAX 数据中心状态，写入 `data/data_center.json`、`data/data_center.txt` 和兼容旧版的 `test.txt`。
 
+## 7.9 新增
+
+- Telegram 内直接查看和修改采集间隔：`/interval`、`/interval 60`、`/setinterval 60`。
+- TG 修改间隔后自动写入 `interval.txt` 和 `config.env`。
+- 自动尝试重启 `hax-bot-collector.service`，新采集间隔立即生效。
+- 采集器运行中会动态读取 `interval.txt`，即使 systemctl 重启失败，下一轮也会生效。
+- 卸载脚本增强：可停止服务、禁用开机自启、删除 systemd 文件、清理残留进程，可选择保留或删除数据目录。
+
 ## 目录结构
 
 ```text
-hax-bot-7.8/
+hax-bot-7.9/
 ├── app/
 │   ├── bot/main.py
 │   ├── collector/hax.py
@@ -53,14 +61,48 @@ apt install -y python3 python3-pip python3-venv git curl
 cd /opt
 git clone https://github.com/mingyueqianli/hax-bot-7.7.git hax-bot
 cd /opt/hax-bot
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-echo "你的TelegramBotToken" > token.txt
-echo "30" > interval.txt
-chmod 600 token.txt interval.txt
 bash install.sh
+```
+
+## Telegram 命令
+
+- `/start`：查看帮助。
+- `/new`：添加机器续期提醒。
+- `/info`：查看机器列表和剩余时间。
+- `/rename`：修改备注或续期日期。
+- `/delmachine`：删除机器，支持 `1,3` 或 `1-3`。
+- `/monitor`：开启/关闭 HAX 数据中心变化提醒。
+- `/status`：查看当前采集到的数据中心状态。
+- `/interval`：查看当前采集间隔，并显示快捷按钮。
+- `/interval 60`：把采集间隔改为 60 秒。
+- `/setinterval 120`：把采集间隔改为 120 秒。
+- `/cancel`：取消当前操作。
+
+## 修改采集间隔
+
+在 Telegram 里发送：
+
+```text
+/interval
+```
+
+或者直接设置：
+
+```text
+/interval 60
+```
+
+系统会同步修改：
+
+```text
+/opt/hax-bot/interval.txt
+/opt/hax-bot/config.env
+```
+
+并自动尝试执行：
+
+```bash
+systemctl restart hax-bot-collector.service
 ```
 
 ## 服务管理
@@ -82,21 +124,11 @@ journalctl -u hax-bot-collector -f
 ./update.sh
 ```
 
-## Telegram 命令
-
-- `/start`：查看帮助。
-- `/new`：添加机器续期提醒。
-- `/info`：查看机器列表和剩余时间。
-- `/rename`：修改备注或续期日期。
-- `/delmachine`：删除机器，支持 `1,3` 或 `1-3`。
-- `/monitor`：开启/关闭 HAX 数据中心变化提醒。
-- `/status`：查看当前采集到的数据中心状态。
-- `/cancel`：取消当前操作。
-
 ## 重要文件
 
 - `token.txt`：Telegram Bot Token，权限自动设置为 `600`，不会提交到 GitHub。
 - `interval.txt`：采集间隔，单位秒，默认 `30`。
+- `config.env`：systemd 环境变量文件。
 - `data/user_data.json`：用户机器提醒和监控状态。
 - `data/data_center.json`：结构化数据中心状态。
 - `data/data_center.txt`：文本版数据中心状态。
@@ -109,13 +141,37 @@ cd /opt/hax-bot
 ./update.sh
 ```
 
-更新脚本会保留 `token.txt`、`interval.txt`、`data/` 和 `logs/`。
+更新脚本会保留 `token.txt`、`interval.txt`、`config.env`、`data/` 和 `logs/`。
 
 ## 卸载
+
+交互卸载：
 
 ```bash
 cd /opt/hax-bot
 ./uninstall.sh
 ```
 
-默认会询问是否删除 `/opt/hax-bot` 目录。
+直接彻底删除：
+
+```bash
+cd /opt/hax-bot
+./uninstall.sh --purge
+```
+
+或者：
+
+```bash
+HAX_PURGE=1 bash /opt/hax-bot/uninstall.sh
+```
+
+卸载会执行：
+
+```text
+1. 停止 hax-bot.service 和 hax-bot-collector.service
+2. 禁用开机自启
+3. 删除 /etc/systemd/system/ 里的服务文件
+4. systemctl daemon-reload 和 reset-failed
+5. 清理残留 Python 进程
+6. 根据选择保留或删除 /opt/hax-bot
+```

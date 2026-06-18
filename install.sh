@@ -113,14 +113,6 @@ write_config() {
     local interval="${HAX_INTERVAL:-}"
     local mode="${HAX_MODE:-}"
 
-    # 如果是升级安装，优先复用旧版配置，避免重复输入。
-    if [ -z "$token" ] && [ -f "$APP_DIR/token.txt" ]; then
-        token="$(cat "$APP_DIR/token.txt" | tr -d '\r\n')"
-    fi
-    if [ -z "$interval" ] && [ -f "$APP_DIR/interval.txt" ]; then
-        interval="$(cat "$APP_DIR/interval.txt" | tr -d '\r\n')"
-    fi
-
     if [ -z "$mode" ] && [ -r /dev/tty ]; then
         echo "===================="
         echo "请选择模式:"
@@ -173,7 +165,7 @@ create_services() {
 
     cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
-Description=HAX BOT 7.8 Telegram Service
+Description=HAX BOT 7.9 Telegram Service
 After=network.target network-online.target
 Wants=network-online.target
 
@@ -197,7 +189,7 @@ EOF
 
     cat > /etc/systemd/system/${SERVICE_NAME}-collector.service <<EOF
 [Unit]
-Description=HAX BOT 7.8 Collector Service
+Description=HAX BOT 7.9 Collector Service
 After=network.target network-online.target
 Wants=network-online.target
 
@@ -247,7 +239,7 @@ print_done() {
     interval="$(cat "$APP_DIR/interval.txt")"
     echo ""
     echo "================================"
-    echo "✅ HAX BOT 7.8 安装完成"
+    echo "✅ HAX BOT 7.9 安装完成"
     echo "================================"
     echo "📦 路径: $APP_DIR"
     if [ "${#token}" -gt 12 ]; then
@@ -266,11 +258,21 @@ print_done() {
     echo "📁 应用日志:"
     echo "  tail -f $APP_DIR/logs/bot.log"
     echo "  tail -f $APP_DIR/logs/collector.log"
+    echo ""
+    echo "🤖 Telegram 命令:"
+    echo "  /start"
+    echo "  /status"
+    echo "  /interval"
+    echo "  /interval 60"
+    echo ""
+    echo "🧹 卸载:"
+    echo "  cd $APP_DIR && ./uninstall.sh"
+    echo "  cd $APP_DIR && ./uninstall.sh --purge"
     echo "================================"
 }
 
 main() {
-    echo "🚀 HAX BOT 7.8 安装脚本（GitHub 完整版）"
+    echo "🚀 HAX BOT 7.9 安装脚本（GitHub 完整版）"
     require_root
     install_packages
     backup_old_install

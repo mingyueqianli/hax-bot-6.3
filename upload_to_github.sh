@@ -8,7 +8,7 @@ if [ ! -d .git ]; then
 fi
 
 git add .
-git commit -m "HAX BOT 7.8 full package" || true
+git commit -m "HAX BOT 7.9 full package" || true
 git branch -M "$BRANCH"
 if git remote get-url origin >/dev/null 2>&1; then
   git remote set-url origin "$REPO_URL"
