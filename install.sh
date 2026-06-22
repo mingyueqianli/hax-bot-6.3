@@ -109,6 +109,7 @@ setup_python() {
 
 write_config() {
     log_step "写入 TOKEN 和采集间隔..."
+
     local token="${HAX_TOKEN:-}"
     local interval="${HAX_INTERVAL:-}"
     local mode="${HAX_MODE:-}"
@@ -121,6 +122,7 @@ write_config() {
         echo "===================="
         safe_read "输入 [1/2]: " mode
     fi
+
     mode="${mode:-1}"
 
     while [ -z "$token" ]; do
@@ -133,16 +135,23 @@ write_config() {
     if [ -z "$interval" ]; then
         if [ "$mode" = "2" ]; then
             while true; do
-                safe_read "⏱ INTERVAL（秒）: " interval
+                safe_read "⏱ INTERVAL（秒，默认 30）: " interval
+                interval="${interval:-30}"
+
                 if [[ "$interval" =~ ^[0-9]+$ ]] && [ "$interval" -gt 0 ]; then
+                    log_info "使用自定义间隔：${interval}s"
                     break
                 fi
-                log_error "请输入有效正整数"
+
+                log_error "请输入有效正整数，例如 30、60、120"
+                interval=""
             done
         else
             interval="30"
             log_info "使用默认间隔：${interval}s"
         fi
+    else
+        log_info "使用环境变量间隔：${interval}s"
     fi
 
     if ! [[ "$interval" =~ ^[0-9]+$ ]] || [ "$interval" -le 0 ]; then
@@ -152,12 +161,13 @@ write_config() {
 
     printf '%s\n' "$token" > "$APP_DIR/token.txt"
     printf '%s\n' "$interval" > "$APP_DIR/interval.txt"
+
     cat > "$APP_DIR/config.env" <<EOF
-HAX_APP_DIR=$APP_DIR
+HAX_TOKEN=$token
 HAX_INTERVAL=$interval
 EOF
-    chmod 600 "$APP_DIR/token.txt" "$APP_DIR/interval.txt" "$APP_DIR/config.env"
 }
+
 
 create_services() {
     log_step "创建 systemd 服务..."
